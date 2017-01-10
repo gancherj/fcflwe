@@ -30,7 +30,7 @@ match n as n, m as m return n < m -> bnat m with
  | S n, S m => fun pf => bS (@bnat_from_nat_raw m n (lt_S_n _ _ pf))
 end.
 
-Definition bnat_mod_nat (N n : nat) :=
+Definition bnat_mod_nat (N n : nat) := (* N -> n -> n mod N as bnat (S N) *)
 let pfz := not_eq_sym (O_S N) in
 @bnat_from_nat_raw (S N) (n mod (S N)) (Nat.mod_upper_bound n (S N) pfz).
 
@@ -73,6 +73,7 @@ Qed.
 Require Import List.
 
 Definition bnat_bound n (b: bnat n): nat := n.
+
 
 Lemma bnat_bound_lt n (b : bnat n) : @to_nat n b < @bnat_bound n b.
 induction n.
@@ -123,6 +124,7 @@ Proof with auto.
   destruct (bnat_cases x) as [[p e] | e]; subst; [right | left]...
 Defined.
 
+(* below used to give decidable equality on bnat; can be simplified using https://github.com/tchajed/deptacs *)
 Lemma tonat_sound {N : nat} (o1 o2 : bnat N) : to_nat o1 = to_nat o2 -> o1 = o2.
 intros.
 dependent induction o1.
@@ -168,8 +170,13 @@ Definition bnat_mult {N : nat} (a b : bnat (S N)) := bnat_mod_nat N ((to_nat a) 
 
 Definition bd_vec (n q : nat) := Vector.t (bnat q) n.
 
-Fixpoint dot_prod {n q : nat} (v w : bd_vec n (S q)) := 
+Fixpoint bnv_dot {n q : nat} (v w : bd_vec n (S q)) := 
 Vector.fold_left2 (fun (acc a b : bnat (S q)) => bnat_add acc (bnat_mult a b)) (bO q) v w.
+
+
+
+Fixpoint bnv_add {n q : nat} (v w : bd_vec n (S q)) :=
+Vector.map2 (fun a b => bnat_add a b) v w.
 
 Global Instance eqbv : forall {n q : nat}, EqDec (bd_vec n q).
 unfold bd_vec.
@@ -178,5 +185,19 @@ apply Vector_EqDec.
 apply bnat_eqdec.
 Defined.
 
-Check dot_prod.
+
+Fixpoint from_natlist (N : nat) (xs : list nat) := 
+let bxs := map (fun n => bnat_mod_nat N n) xs in
+Vector.of_list bxs.
+
+(* example of vector arithmetic *)
+
+Definition v := from_natlist 4 (1 :: 2 :: 0 :: nil)%nat.
+Definition w := from_natlist 4 (2 :: 4 :: 1 :: nil)%nat.
+Compute bnv_dot v w.
+(* = bO 4
+     : bnat 5 (ie, 0 mod 5) *)
+Compute Vector.to_list (bnv_add v w).
+(* = [bS (bS (bS (bO 1))); bS (bO 3); bS (bO 3)] (ie, [3, 1, 1]) *)
+
 
