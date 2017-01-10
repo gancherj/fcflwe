@@ -1,9 +1,5 @@
 (* Adapted from https://github.com/Eelis/hybrid (although the construction is standard) *)
 
-Add LoadPath "~/research/MP-FCF/".
-Add LoadPath "~/fcf/src/FCF".
-Add LoadPath "~/code/fcf/src/FCF".
-Add LoadPath "~/research/MP-FCF/hybrid".
 Require Import Vector.
 Require Import FCF.
 
