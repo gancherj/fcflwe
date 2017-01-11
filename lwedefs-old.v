@@ -1,17 +1,8 @@
 Require Import bnat.
 Require Import FCF.
 Require Import EqDec.
-Set Implicit Arguments.
+
 Check 0.
-
-
-Definition vec_dotmod {n : nat} (q : nat) (a b : Vector.t nat n) :=
-Vector.fold_left2 (fun acc v w => acc + (v * w) mod q)%nat 0%nat a b.
-
-Check Vector.map2.
-
-Definition vec_addmod {n : nat} (q : nat) (a b : Vector.t nat n) :=
-Vector.map2 (fun x y => x + y mod q)%nat a b.
 
 Definition ratRound01 (r : Rat) :=
 if bleRat (ratDistance r 0) (ratDistance r 1) then false else true.
@@ -24,23 +15,17 @@ match n with
          ret (Vector.cons _ x _ tl)
 end.
 
-Definition Uniform_nat (N : nat) :=
+Definition Uniform_bnat (N : nat) :=
 x <-$ [0..N);
-ret x.
+ret bnat_mod_nat N x.
 
 Section LWE_Defs.
 Context (q n : nat).
-Context (posq : nz q).
-Locate nz.
-Definition LWEVec := Vector.t nat n.
+Definition LWEVec := bd_vec n (S q).
 
-Check Vector.fold_left2.
-
-
-
-Definition Uniform_LWEVec := Sample_N (Uniform_nat q) n. (* computes x <-$ Z_q^n *)
-Definition Uniform_q := Uniform_nat q. (* computes x <-$ Z_q *)
-Context (chi : Comp (bnat q)).
+Definition Uniform_LWEVec := Sample_N (Uniform_bnat q) n. (* computes x <-$ Z_(q+1)^n *)
+Definition Uniform_q := Uniform_bnat q. (* computes x <-$ Z_(q+1) *)
+Context (chi : Comp (bnat (S q))).
 
 Definition LWE_UniformDist (st input : unit) :=
 a <-$ Uniform_LWEVec;
@@ -50,13 +35,10 @@ ret ((a, b), tt).
 Definition LWE_RealDist (s : LWEVec) (st input : unit) :=
 a <-$ Uniform_LWEVec;
 e <-$ chi;
-ret ((a, (to_nat e) + (vec_dotmod q a s))%nat, tt).
+ret ((a, bnat_add e (bnv_dot a s)), tt).
 
 
-Check LWE_RealDist.
-
-Variable D : OracleComp unit (Vector.t nat n * nat) bool.
-
+Variable D : OracleComp unit (bd_vec n (S q) * bnat (S q)) bool.
 Definition LWE_Fake :=
 [b, _] <-$2 D _ _ LWE_UniformDist tt;
 ret b.
@@ -73,41 +55,30 @@ End LWE_Defs.
 
 Section Regev_PKE.
 Context (q n m : nat).
-Context (posq : nz q).
-Context (chi : Comp (bnat q)).
+Context (chi : Comp (bnat (S q))).
 Check Uniform_LWEVec.
 Definition Sample_SK := Uniform_LWEVec q n.
 Check Sample_SK.
-Definition Regev_SecretKey := (Vector.t nat n).
+Definition Regev_SecretKey := (Vector.t (bnat (S q)) n).
 
-Check LWEVec.
-
-Check LWE_RealDist.
-
-Definition Sample_PK (s : LWEVec n) := Sample_N
-([a, b, _] <-$3 LWE_RealDist chi s tt tt;
+Definition Sample_PK (s : LWEVec q n) := Sample_N
+([a, b, _] <-$3 LWE_RealDist q n chi s tt tt;
  ret (a, b)) 
 m.
 
 Check Sample_PK.
-Definition Regev_PublicKey := (Vector.t (Vector.t nat n * nat) m).
+Definition Regev_PublicKey := (Vector.t (Vector.t (bnat (S q)) n * bnat (S q)) m).
 
 Definition Generate_SelectVector := Sample_N ({0,1}) m.
 Definition SelectVector := Vector.t bool m.
 
-Check Vector.const.
-
-Check vec_addmod.
-
 Definition SubsetSum (pk: Regev_PublicKey) (sel : SelectVector) :=
 Vector.fold_left2 (fun acc p (b : bool) => if b then 
                    match p, acc with
-                   | (a, b), (aa, ab) => (vec_addmod q a aa, b + ab mod q)%nat 
+                   | (a, b), (aa, ab) => (bnv_add a aa, bnat_add b ab)
                    end
                     else acc)
-                   (Vector.const 0%nat n, 0%nat) pk sel.
-
-Check SubsetSum.
+                   (bd_vec_zeroes n q, bO q) pk sel.
 
 Check div.
 
@@ -117,26 +88,33 @@ Definition Regev_PKEnc (pk: Regev_PublicKey) (m : bool) :=
 sel <-$ Generate_SelectVector;
 [a, b] <-2 SubsetSum pk sel;
 b <- if m then
-      (b + (div q 2) mod q)%nat
+      bnat_add b (bnat_mod_nat q (div (S q) 2))
       else b;
 ret (a, b).
 
+Check Regev_PKEnc.
+
+Check le.
+
+Check ltb.
+
+Definition nat_dist (a b : nat) := max (a - b) (b - a).
 
 
-Definition Regev_Ciphertext := (Vector.t nat n * nat)%type.
+Definition Regev_Ciphertext := (bd_vec n (S q) * bnat (S q))%type.
 
 
 Definition Regev_PKDec (s : Regev_SecretKey) (c : Regev_Ciphertext) := match c with
-| (a, b) => let r := (b - (vec_dotmod q a s)) in
-            ratRound01 ( (r/1) * (2 / 1) * (1 / q))%rat
+| (a, b) => let r := ((to_nat b) - (to_nat (bnv_dot a s))) / 1 in
+            ratRound01 (r * (2 / 1) * (1 / (S q)))
 end.
 
 Check Vector.fold_left.
 
 Definition admissible_chi (k : nat) :=
 es <-$ Sample_N chi k;
-sum <- Vector.fold_left (fun a b => a + (to_nat b))%nat (0%nat) es;
-ret (leb sum (div q 4)).
+sum <- Vector.fold_left (fun a b => bnat_add a b)%nat (bO q) es;
+ret (leb (to_nat sum) (div (S q) 4)).
 
 Lemma correct_decrypt (delta : Rat) (s : Regev_SecretKey) (pk: Regev_PublicKey) (c : Regev_Ciphertext) (msg : bool) :
 In pk (getSupport (Sample_PK s)) ->
