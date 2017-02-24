@@ -1,4 +1,4 @@
-Add LoadPath "~/fcf/src/FCF".
+Add LoadPath "~/fcf/fcf/src/FCF".
 Require Import FCF.
 Require Import Asymptotic.
 Require Import Vector.
@@ -79,6 +79,39 @@ pose (prob_le A D Q P x0 H0).
 pose (leRat_trans H3 l).
 intuition.
 Qed.
+
+Theorem union_bound : forall A (D : forall n, Comp (A n)) P Q n, Prob D (fun n x => P n x && Q n x) n <= Prob D P n + Prob D Q n.
+Abort.
+(* is the above right to prove the below? *)
+
+
+Theorem whp_and : forall A (D : forall n, Comp (A n)) P Q, D ⊨ P w/hp -> D ⊨ Q w/hp -> D ⊨ (fun n x => andb (P n x) (Q n x)) w/hp.
+intuition.
+unfold whp in *.
+unfold negligible in *.
+intuition.
+destruct (H c).
+destruct (H0 c).
+exists (Nat.max x x0).
+intuition.
+unfold gt in H3.
+apply Nat.max_lub_lt_iff in H3.
+destruct H3.
+unfold gt in H1.
+pose (H1 x1 pf_nz H3).
+unfold gt in H2.
+pose (H2 x1 pf_nz H5).
+
+unfold Prob in *.
+
+assert (Pr [x <-$ D x1; ret P x1 x && Q x1 x ] <= Pr [x <-$ D x1; ret P x1 x ] + Pr [x <-$ D x1; ret Q x1 x ]). (* union bound *)
+comp_skip.
+simpl.
+
+
+
+
+
 
 Definition Prob_bv := Prob (fun n => x <-$ {0,1}^n; ret x).
 Definition wlp_bv := wlp (fun n => x <-$ {0,1}^n; ret x).
