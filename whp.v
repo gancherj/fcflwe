@@ -5,7 +5,7 @@ Require Import Vector.
 Require Import Bvector.
 Check Bvector.
 
-(* first attempt : if distributions are always {0,1}^n, use FCF's native reasoning. ie, WHProps are of the form {0,1}^n :=> P, where P is a determinstic property on random inputs *)
+(* first attempt : distributions are parametrized by some n. properties are deterministic functions to bool on these distributions. *)
 
 Infix "-" := ratSubtract : rat_scope.
 
@@ -19,9 +19,14 @@ Definition Prob {A : nat -> Set}   (D : forall n, Comp (A n)) (P : forall n, A n
 Definition wlp {A : nat -> Set} (D : forall n, Comp (A n)) (P : forall n, A n -> bool) := negligible (fun n => Prob D P n). 
 Definition whp {A : nat -> Set} (D : forall n, Comp (A n)) (P : forall n, A n -> bool) := negligible (fun n => (1 - Prob D P n)%rat).
 
+Notation "D ⊨ P 'w/hp'" := (whp D P) (at level 99).
+Notation "D ⊨ P 'w/lp'" := (wlp D P) (at level 99).
+
 Definition wp_impl {A : nat -> Set} (P Q : forall n, A n -> bool) := forall (n : nat) (x : A n), P n x = true -> Q n x = true.
 
-Theorem prob_le : forall A (D : forall n, Comp (A n)) P Q n, wp_impl P Q -> Prob D P n <= Prob D Q n.
+Notation "P ~> Q" := (wp_impl P Q) (at level 99).
+
+Theorem prob_le : forall A (D : forall n, Comp (A n)) P Q n, P ~> Q -> Prob D P n <= Prob D Q n.
 intuition.
 unfold Prob.
 unfold wp_impl in H.
@@ -37,7 +42,7 @@ simpl.
 auto.
 Qed.
 
-Theorem prob_opple : forall A (D : forall n, Comp (A n)) P Q n, wp_impl P Q -> 1 - Prob D Q n <= 1 - Prob D P n.
+Theorem prob_opple : forall A (D : forall n, Comp (A n)) P Q n, P ~> Q -> 1 - Prob D Q n <= 1 - Prob D P n.
 intuition.
 pose (prob_le A D P Q n H).
 apply ratSubtract_leRat_r.
@@ -45,7 +50,7 @@ intuition.
 Qed.
 
 
-Theorem whp_impl : forall A (D : forall n, Comp (A n)) P Q, whp D P -> wp_impl P Q -> whp D Q.
+Theorem whp_impl : forall A (D : forall n, Comp (A n)) P Q, D ⊨ P w/hp -> wp_impl P Q -> D ⊨ Q w/hp.
 intuition.
 unfold whp in *.
 
@@ -60,7 +65,7 @@ pose (leRat_trans H3 l).
 intuition.
 Qed.
 
-Theorem wlp_impl : forall A (D : forall n, Comp (A n)) P Q, wlp D P -> wp_impl Q P -> wlp D Q.
+Theorem wlp_impl : forall A (D : forall n, Comp (A n)) P Q, D ⊨ P w/lp -> Q ~> P -> D ⊨ Q w/lp.
 intuition.
 unfold wlp in *.
 
